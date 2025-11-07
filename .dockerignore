@@ -1,0 +1,11 @@
+node_modules
+.next/cache
+.next/types
+.vscode
+.idea
+.git
+.gitignore
+Dockerfile
+docker-compose.yml
+*.log
+*.local
