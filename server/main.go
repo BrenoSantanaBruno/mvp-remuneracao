@@ -14,6 +14,8 @@ type Empresa struct {
 	Name      string    `json:"name"`
 	Fantasia  string    `json:"fantasia"`
 	CNPJ      string    `json:"cnpj"`
+	Cidade    string    `json:"cidade"`
+	Estado    string     `json:"estado"`
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"createdAt"`
 }
