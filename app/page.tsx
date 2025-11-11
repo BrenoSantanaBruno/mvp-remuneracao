@@ -1,45 +1,47 @@
 "use client"
 
 import type React from "react"
-import { getJSON, postJSON } from "@/lib/api"
+import { useState, useEffect } from "react"
+
+import { getJSON, postJSON, delJSON } from "@/lib/api"
 import { Toaster } from "@/components/ui/toaster"
 import { downloadCSV } from "@/lib/csv"
 import { onDataChanged } from "@/lib/events"
-import { delJSON } from "@/lib/api"
-import type { Empresa, Cargo, Funcionario, TabelaSalarial } from "@/types"
+
 import { NovaEmpresaButton } from "@/components/features/empresas/NovaEmpresaButton"
-import { NovoFuncionarioButton } from "@/components/features/funcionarios/NovoFuncionarioButton"
-import { NovoCargoButton } from "@/components/features/cargos/NovoCargoButton"
-import { AvaliarCargoButton } from "@/components/features/cargos/AvaliarCargoButton"
-import { NovaTabelaSalarialButton } from "@/components/features/tabelas/NovaTabelaSalarialButton"
 import { NovoGenericoButton } from "@/components/features/generics/NovoGenericoButton"
-import NovoCargoButton from "@/components/features/cargos/NovoCargoButton"
+
+// ATENÇÃO: use **named** para NovoCargoButton (esse módulo não exporta default)
+import { NovoCargoButton } from "@/components/features/cargos/NovoCargoButton"
+// Estes 3 exportam **default** (conforme te enviei)
 import NovaTrilhaButton from "@/components/features/cargos/NovaTrilhaButton"
 import NovoFuncionarioButton from "@/components/features/funcionarios/NovoFuncionarioButton"
 import AvaliarCargoButton from "@/components/features/cargos/AvaliarCargoButton"
 import NovaTabelaSalarialButton from "@/components/features/tabelas/NovaTabelaSalarialButton"
 
+import type { Empresa, Cargo, Funcionario, TabelaSalarial } from "@/types"
 
-import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
-  LayoutDashboard,
-  Building2,
-  Briefcase,
-  Users,
-  ClipboardCheck,
-  Network,
-  DollarSign,
-  FileText,
-  Download,
-  Eye,
-  Edit,
-  ChevronRight,
+    LayoutDashboard,
+    Building2,
+    Briefcase,
+    Users,
+    ClipboardCheck,
+    Network,
+    DollarSign,
+    FileText,
+    Download,
+    Eye,
+    Edit,
+    ChevronRight,
+    Trash, // <— necessário no EmployeeRow
 } from "lucide-react"
+
 
 type MenuItem =
   | "dashboard"
@@ -201,7 +203,7 @@ function DashboardPage() {
     getJSON<Funcionario[]>("/api/funcionarios").then(setFuncionarios).catch(()=>{})
     getJSON<any[]>("/api/avaliacoes").then(setAvaliacoes).catch(()=>{})
   }, [])
-  useEffect(()=>{ const u = onDataChanged(()=>{ 
+  useEffect(()=>{ const u = onDataChanged(()=>{
     getJSON<Cargo[]>("/api/cargos").then(setCargos).catch(()=>{})
     getJSON<Funcionario[]>("/api/funcionarios").then(setFuncionarios).catch(()=>{})
     getJSON<any[]>("/api/avaliacoes").then(setAvaliacoes).catch(()=>{})
@@ -292,7 +294,7 @@ function DashboardPage() {
                     <NovoCargoButton onCreated={(c:any)=>setCargos((p:any[])=>[...p,c])} />
                     <NovoFuncionarioButton onCreated={(f:any)=>setFuncionarios((p:any[])=>[...p,f])} />
                     <AvaliarCargoButton />
-                    <NovaTabelaSalarialButton onCreated={() => { /* refresh já vem via event bus */ }} />
+                    <NovaTabelaSalarialButton onCreated={() => { /* refresh via event bus */ }} />
                 </div>
             </CardContent>
         </Card>
@@ -304,7 +306,7 @@ function EstruturaPage({
   selectedTab,
   setSelectedTab,
 }: { selectedTab: string; setSelectedTab: (tab: string) => void }) {
-  
+
   const [empresas, setEmpresas] = useState<Empresa[]>([])
   const [estabs, setEstabs] = useState<any[]>([])
   const [lotacoes, setLotacoes] = useState<any[]>([])
@@ -393,7 +395,7 @@ return (
 }
 
 function CargosPage() {
-  
+
   const [cargos, setCargos] = useState<Cargo[]>([])
   const [trilhas, setTrilhas] = useState<any[]>([])
   useEffect(()=>{ getJSON<Cargo[]>("/api/cargos").then(setCargos).catch(()=>{}) ; getJSON<any[]>("/api/trilhas").then(setTrilhas).catch(()=>{}) },[])
@@ -436,7 +438,7 @@ return (
 }
 
 function FuncionariosPage() {
-  
+
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([])
   useEffect(()=>{ getJSON<Funcionario[]>("/api/funcionarios").then(setFuncionarios).catch(()=>{}) }, [])
   useEffect(()=>{ const u = onDataChanged(()=>{ getJSON<Funcionario[]>("/api/funcionarios").then(setFuncionarios).catch(()=>{}) }); return u }, [])

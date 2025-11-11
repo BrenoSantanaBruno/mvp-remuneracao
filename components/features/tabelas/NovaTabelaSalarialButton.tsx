@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
@@ -27,12 +27,17 @@ export default function NovaTabelaSalarialButton({ onCreated }: { onCreated?: (t
     const [cargos, setCargos] = useState<any[]>([])
     const { toast } = useToast()
 
-    const { register, handleSubmit, formState:{ isSubmitting }, reset, setValue } = useForm<Form>({
+    const { register, handleSubmit, control, formState:{ isSubmitting, errors }, reset, setValue } = useForm<Form>({
         resolver: zodResolver(Schema),
         defaultValues: { moeda: 'BRL' },
     })
 
-    useEffect(() => { getJSON<any[]>('/api/cargos').then(setCargos).catch(()=>{}) }, [])
+    useEffect(() => {
+        getJSON<any[]>('/api/cargos').then(list=>{
+            setCargos(list||[])
+            if (list?.length) setValue('cargo', list[0].titulo, { shouldValidate:true })
+        }).catch(()=>{})
+    }, [setValue])
 
     async function onSubmit(values: Form) {
         try {
@@ -44,6 +49,10 @@ export default function NovaTabelaSalarialButton({ onCreated }: { onCreated?: (t
             toast({ title: 'Erro ao criar tabela', description: String(e), variant: 'destructive' })
         }
     }
+    function onError(){
+        const faltando = Object.keys(errors).join(", ")
+        toast({ variant:"destructive", title:"Verifique os campos", description: faltando || "Campos obrigatórios ausentes" })
+    }
 
     return (
         <>
@@ -52,20 +61,25 @@ export default function NovaTabelaSalarialButton({ onCreated }: { onCreated?: (t
                 <DialogContent className="sm:max-w-[560px]">
                     <DialogHeader><DialogTitle>Nova Tabela Salarial</DialogTitle></DialogHeader>
 
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+                    <form onSubmit={handleSubmit(onSubmit, onError)} className="space-y-3">
                         <div><Label>Nome</Label><Input {...register('nome')} /></div>
 
                         <div>
                             <Label>Cargo</Label>
-                            <input type="hidden" {...register('cargo' as const)} />
-                            <Select onValueChange={(v)=>{ (register('cargo').onChange as any)({ target:{ value:v }}) }}>
-                                <SelectTrigger><SelectValue placeholder="Selecione o cargo" /></SelectTrigger>
-                                <SelectContent>
-                                    {cargos.map((c:any)=>(
-                                        <SelectItem key={c.id} value={c.titulo}>{c.titulo}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Controller
+                                control={control}
+                                name="cargo"
+                                render={({ field }) => (
+                                    <Select value={field.value} onValueChange={field.onChange}>
+                                        <SelectTrigger><SelectValue placeholder="Selecione o cargo" /></SelectTrigger>
+                                        <SelectContent>
+                                            {cargos.map((c:any)=>(
+                                                <SelectItem key={c.id} value={c.titulo}>{c.titulo}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                            />
                         </div>
 
                         <div className="grid grid-cols-3 gap-2">
@@ -76,15 +90,20 @@ export default function NovaTabelaSalarialButton({ onCreated }: { onCreated?: (t
 
                         <div>
                             <Label>Moeda</Label>
-                            <input type="hidden" {...register('moeda' as const)} />
-                            <Select defaultValue="BRL" onValueChange={(v)=>{ (register('moeda').onChange as any)({ target:{ value:v }}) }}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="BRL">BRL</SelectItem>
-                                    <SelectItem value="USD">USD</SelectItem>
-                                    <SelectItem value="EUR">EUR</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <Controller
+                                control={control}
+                                name="moeda"
+                                render={({ field }) => (
+                                    <Select value={field.value} onValueChange={field.onChange}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="BRL">BRL</SelectItem>
+                                            <SelectItem value="USD">USD</SelectItem>
+                                            <SelectItem value="EUR">EUR</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                            />
                         </div>
 
                         <DialogFooter>

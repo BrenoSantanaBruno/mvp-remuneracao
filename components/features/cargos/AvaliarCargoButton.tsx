@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
@@ -22,7 +22,9 @@ export default function AvaliarCargoButton() {
     const [open, setOpen] = useState(false)
     const [cargos, setCargos] = useState<any[]>([])
     const { toast } = useToast()
-    const { register, handleSubmit, formState:{ isSubmitting } } = useForm<Form>({ resolver: zodResolver(Schema) })
+    const { handleSubmit, control, register, formState:{ isSubmitting, errors } } = useForm<Form>({
+        resolver: zodResolver(Schema),
+    })
 
     useEffect(() => { getJSON<any[]>('/api/cargos').then(setCargos).catch(()=>{}) }, [])
 
@@ -35,6 +37,10 @@ export default function AvaliarCargoButton() {
             toast({ title: 'Erro ao avaliar cargo', description: String(e), variant: 'destructive' })
         }
     }
+    function onError(){
+        const faltando = Object.keys(errors).join(", ")
+        toast({ variant:"destructive", title:"Verifique os campos", description: faltando || "Campos obrigatórios ausentes" })
+    }
 
     return (
         <>
@@ -42,18 +48,23 @@ export default function AvaliarCargoButton() {
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogContent className="sm:max-w-[520px]">
                     <DialogHeader><DialogTitle>Avaliar Cargo</DialogTitle></DialogHeader>
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+                    <form onSubmit={handleSubmit(onSubmit, onError)} className="space-y-3">
                         <div>
                             <Label>Cargo</Label>
-                            <input type="hidden" {...register('cargo' as const)} />
-                            <Select onValueChange={(v)=>{ (register('cargo').onChange as any)({ target:{ value:v }}) }}>
-                                <SelectTrigger><SelectValue placeholder="Selecione o cargo" /></SelectTrigger>
-                                <SelectContent>
-                                    {(cargos||[]).map((c:any)=>(
-                                        <SelectItem key={c.id} value={c.titulo}>{c.titulo}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Controller
+                                name="cargo"
+                                control={control}
+                                render={({ field }) => (
+                                    <Select value={field.value} onValueChange={field.onChange}>
+                                        <SelectTrigger><SelectValue placeholder="Selecione o cargo" /></SelectTrigger>
+                                        <SelectContent>
+                                            {(cargos||[]).map((c:any)=>(
+                                                <SelectItem key={c.id} value={c.titulo}>{c.titulo}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                            />
                         </div>
                         <div><Label>Nota (1..5)</Label><Input type="number" min={1} max={5} {...register('nota' as const)} /></div>
                         <div><Label>Comentário</Label><Input {...register('comentario')} /></div>
