@@ -1,4 +1,4 @@
-aAula 2 — Add-ons fullstack (Merge-ready)
+Aula 2 — Add-ons fullstack (Merge-ready)
 
 Extraia este ZIP na raiz do projeto Next.
 Conteúdo:
