@@ -4,6 +4,8 @@ import type React from "react"
 import { getJSON, postJSON } from "@/lib/api"
 import { Toaster } from "@/components/ui/toaster"
 import { downloadCSV } from "@/lib/csv"
+import { onDataChanged } from "@/lib/events"
+import { delJSON } from "@/lib/api"
 import type { Empresa, Cargo, Funcionario, TabelaSalarial } from "@/types"
 import { NovaEmpresaButton } from "@/components/features/empresas/NovaEmpresaButton"
 import { NovoFuncionarioButton } from "@/components/features/funcionarios/NovoFuncionarioButton"
@@ -11,6 +13,12 @@ import { NovoCargoButton } from "@/components/features/cargos/NovoCargoButton"
 import { AvaliarCargoButton } from "@/components/features/cargos/AvaliarCargoButton"
 import { NovaTabelaSalarialButton } from "@/components/features/tabelas/NovaTabelaSalarialButton"
 import { NovoGenericoButton } from "@/components/features/generics/NovoGenericoButton"
+import NovoCargoButton from "@/components/features/cargos/NovoCargoButton"
+import NovaTrilhaButton from "@/components/features/cargos/NovaTrilhaButton"
+import NovoFuncionarioButton from "@/components/features/funcionarios/NovoFuncionarioButton"
+import AvaliarCargoButton from "@/components/features/cargos/AvaliarCargoButton"
+import NovaTabelaSalarialButton from "@/components/features/tabelas/NovaTabelaSalarialButton"
+
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -184,6 +192,32 @@ function MenuItem({
 }
 
 function DashboardPage() {
+  const [cargos, setCargos] = useState<Cargo[]>([])
+  const [trilhas, setTrilhas] = useState<any[]>([])
+  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([])
+  const [avaliacoes, setAvaliacoes] = useState<any[]>([])
+  useEffect(()=>{
+    getJSON<Cargo[]>("/api/cargos").then(setCargos).catch(()=>{})
+    getJSON<Funcionario[]>("/api/funcionarios").then(setFuncionarios).catch(()=>{})
+    getJSON<any[]>("/api/avaliacoes").then(setAvaliacoes).catch(()=>{})
+  }, [])
+  useEffect(()=>{ const u = onDataChanged(()=>{ 
+    getJSON<Cargo[]>("/api/cargos").then(setCargos).catch(()=>{})
+    getJSON<Funcionario[]>("/api/funcionarios").then(setFuncionarios).catch(()=>{})
+    getJSON<any[]>("/api/avaliacoes").then(setAvaliacoes).catch(()=>{})
+  }); return u }, [])
+  const aval = avaliacoes.length
+  const pend = Math.max(0, cargos.length - aval)
+  const ativos = funcionarios.filter(f=>f.status==='ativo').length
+  const ferias = funcionarios.filter(f=>f.status==='ferias').length
+  const folha = funcionarios.reduce((s,f)=> s + (Number(f.salario)||0), 0)
+  const media = funcionarios.length ? Math.round(folha/funcionarios.length) : 0
+  const novasContratacoes = funcionarios.filter(f=>{
+    const d = f.admissao ? new Date(f.admissao) : null
+    if(!d) return false
+    const diff = (Date.now() - d.getTime()) / (1000*60*60*24)
+    return diff <= 90
+  }).length
   return (
     <div className="space-y-6">
       <div>
@@ -192,10 +226,10 @@ function DashboardPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-4 gap-6">
-        <SummaryCard title="Total de Cargos" value="5" description="3 avaliados, 2 pendentes" />
-        <SummaryCard title="Funcionários" value="4" description="3 ativos, 1 em férias" />
-        <SummaryCard title="Folha de Pagamento" value="R$ 27.500" description="Média: R$ 6.875" />
-        <SummaryCard title="Novas Contratações" value="0" description="Últimos 3 meses" />
+        <SummaryCard title="Total de Cargos" value={String(cargos.length)} description={`${aval} avaliados, ${pend} pendentes`} />
+        <SummaryCard title="Funcionários" value={String(funcionarios.length)} description={`${ativos} ativos, ${ferias} em férias`} />
+        <SummaryCard title="Folha de Pagamento" value={`R$ ${folha.toLocaleString("pt-BR")}`} description={`Média: R$ ${media.toLocaleString("pt-BR")}`} />
+        <SummaryCard title="Novas Contratações" value={String(novasContratacoes)} description="Últimos 3 meses" />
       </div>
 
       <div className="grid grid-cols-2 gap-6">
@@ -248,20 +282,20 @@ function DashboardPage() {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Ações Rápidas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4">
-            <Button><NovoCargoButton onCreated={(c)=>setCargos(p=>[...p,c])} /></Button>
-            <Button variant="outline"><NovoFuncionarioButton onCreated={()=>{}} /></Button>
-            <Button variant="outline"><AvaliarCargoButton /></Button>
-            <Button variant="outline"><NovaTabelaSalarialButton onCreated={()=>{}} /></Button>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Quick Actions */}
+        <Card>
+            <CardHeader>
+                <CardTitle>Ações Rápidas</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="flex gap-4 flex-wrap">
+                    <NovoCargoButton onCreated={(c:any)=>setCargos((p:any[])=>[...p,c])} />
+                    <NovoFuncionarioButton onCreated={(f:any)=>setFuncionarios((p:any[])=>[...p,f])} />
+                    <AvaliarCargoButton />
+                    <NovaTabelaSalarialButton onCreated={() => { /* refresh já vem via event bus */ }} />
+                </div>
+            </CardContent>
+        </Card>
     </div>
   )
 }
@@ -284,6 +318,7 @@ function EstruturaPage({
     getJSON<any[]>("/api/centros").then(setCentros).catch(()=>{})
     getJSON<any[]>("/api/unidades").then(setUnidades).catch(()=>{})
   }, [])
+  useEffect(()=>{ const u=onDataChanged(()=>{ getJSON<Empresa[]>("/api/empresas").then(setEmpresas).catch(()=>{}) }); return u },[])
 return (
     <div className="space-y-6">
       <div>
@@ -292,11 +327,11 @@ return (
 
       {/* Summary Cards */}
       <div className="grid grid-cols-5 gap-6">
-        <SummaryCard title="Empresas" value="2" />
-        <SummaryCard title="Estabelecimentos" value="2" />
-        <SummaryCard title="Lotações" value="2" />
-        <SummaryCard title="Centros Custo" value="3" />
-        <SummaryCard title="Unidades" value="3" />
+        <SummaryCard title="Empresas" value={String(empresas.length)} />
+        <SummaryCard title="Estabelecimentos" value={String(estabs.length)} />
+        <SummaryCard title="Lotações" value={String(lotacoes.length)} />
+        <SummaryCard title="Centros Custo" value={String(centros.length)} />
+        <SummaryCard title="Unidades" value={String(unidades.length)} />
       </div>
 
       {/* Tabs */}
@@ -360,7 +395,9 @@ return (
 function CargosPage() {
   
   const [cargos, setCargos] = useState<Cargo[]>([])
-  useEffect(()=>{ getJSON<Cargo[]>("/api/cargos").then(setCargos).catch(()=>{}) },[])
+  const [trilhas, setTrilhas] = useState<any[]>([])
+  useEffect(()=>{ getJSON<Cargo[]>("/api/cargos").then(setCargos).catch(()=>{}) ; getJSON<any[]>("/api/trilhas").then(setTrilhas).catch(()=>{}) },[])
+  useEffect(()=>{ const u = onDataChanged(()=>{ getJSON<Cargo[]>("/api/cargos").then(setCargos).catch(()=>{}) }); return u }, [])
 return (
     <div className="space-y-6">
       <div>
@@ -369,9 +406,9 @@ return (
 
       {/* Summary Cards */}
       <div className="grid grid-cols-5 gap-6">
-        <SummaryCard title="Total de Cargos" value="5" />
-        <SummaryCard title="Trilhas Ativas" value="2" />
-        <SummaryCard title="Níveis Totais" value="5" />
+        <SummaryCard title="Total de Cargos" value={String(cargos.length)} />
+        <SummaryCard title="Trilhas Ativas" value={String(trilhas.length)} />
+        <SummaryCard title="Níveis Totais" value={String(niveis)} />
         <SummaryCard title="Cargos Vinculados" value="0" />
         <SummaryCard title="Cobertura" value="0%" />
       </div>
@@ -383,18 +420,16 @@ return (
           <option>Filtrar por Área (todas as áreas)</option>
         </select>
         <div className="ml-auto flex gap-2">
-          <Button>+ Novo Cargo</Button>
-          <Button variant="outline">+ Nova Trilha</Button>
+          <NovoCargoButton onCreated={(c)=>setCargos(p=>[...p,c])} />
+          <NovaTrilhaButton onCreated={(t)=>setTrilhas(p=>[...p,t])} />
         </div>
       </div>
 
       {/* Positions List */}
       <div className="space-y-4">
-        <PositionCard title="Analista de Dados Junior" area="Tecnologia" level="Junior" points={285} />
-        <PositionCard title="Gerente de Vendas" area="Comercial" level="Gerente" points={420} />
-        <PositionCard title="Coordenador de Marketing" area="Marketing" level="Pleno" points={0} />
-        <PositionCard title="Assistente Administrativo" area="Administrativo" level="Junior" points={0} />
-        <PositionCard title="Designer UX/UI" area="Design" level="Pleno" points={340} />
+        {cargos.map(c => (
+          <PositionCard key={c.id} title={c.titulo} area={c.area} level={c.nivel} points={c.pontos} />
+        ))}
       </div>
     </div>
   )
@@ -404,6 +439,7 @@ function FuncionariosPage() {
   
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([])
   useEffect(()=>{ getJSON<Funcionario[]>("/api/funcionarios").then(setFuncionarios).catch(()=>{}) }, [])
+  useEffect(()=>{ const u = onDataChanged(()=>{ getJSON<Funcionario[]>("/api/funcionarios").then(setFuncionarios).catch(()=>{}) }); return u }, [])
 return (
     <div className="space-y-6">
       <div>
@@ -412,9 +448,9 @@ return (
 
       {/* Summary Cards */}
       <div className="grid grid-cols-6 gap-6">
-        <SummaryCard title="Total" value="4" />
-        <SummaryCard title="Ativos" value="3" />
-        <SummaryCard title="Férias" value="1" />
+        <SummaryCard title="Total" value={String(total)} />
+        <SummaryCard title="Ativos" value={String(ativos)} />
+        <SummaryCard title="Férias" value={String(ferias)} />
         <SummaryCard title="Com Gestor" value="3" />
         <SummaryCard title="Salário Médio" value="R$ 6.875" />
         <SummaryCard title="Novos (3m)" value="0" />
@@ -430,7 +466,7 @@ return (
           <option>Status</option>
         </select>
         <div className="ml-auto">
-          <Button>+ Novo Funcionário</Button>
+          <NovoFuncionarioButton onCreated={(f)=>setFuncionarios(p=>[...p,f])} />
         </div>
       </div>
 
@@ -452,42 +488,19 @@ return (
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                <EmployeeRow
-                  name="Ana Silva Santos"
-                  position="Analista de Dados Junior"
-                  area="Tecnologia"
-                  manager="Carlos Lima"
-                  admission="14/01/2024"
-                  salary="R$ 5.500"
-                  status="Ativo"
-                />
-                <EmployeeRow
-                  name="Bruno Costa Lima"
-                  position="Gerente de Vendas"
-                  area="Comercial"
-                  manager="CEO/Diretor"
-                  admission="19/06/2023"
-                  salary="R$ 10.000"
-                  status="Ativo"
-                />
-                <EmployeeRow
-                  name="Carla Oliveira"
-                  position="Designer UX/UI"
-                  area="Design"
-                  manager="Daniel Pereira"
-                  admission="09/09/2023"
-                  salary="R$ 6.800"
-                  status="Ativo"
-                />
-                <EmployeeRow
-                  name="Diego Ferreira"
-                  position="Analista de Dados Junior"
-                  area="Tecnologia"
-                  manager="Carlos Lima"
-                  admission="04/03/2024"
-                  salary="R$ 5.200"
-                  status="Férias"
-                />
+                {funcionarios.map(f => (
+                  <EmployeeRow
+                    key={f.id}
+                    id={f.id}
+                    name={f.nome}
+                    position={f.cargo}
+                    area={f.area}
+                    manager={f.gestor || '-'}
+                    admission={f.admissao || ''}
+                    salary={f.salario ? `R$ ${Number(f.salario).toLocaleString('pt-BR')}` : '-'}
+                    status={f.status || 'ativo'}
+                  />
+                ))}
               </tbody>
             </table>
           </div>
@@ -498,14 +511,24 @@ return (
 }
 
 function AvaliacaoPage() {
+  const [cargos, setCargos] = useState<Cargo[]>([])
+  const [trilhas, setTrilhas] = useState<any[]>([])
+  const [avaliacoes, setAvaliacoes] = useState<any[]>([])
+  useEffect(()=>{ getJSON<Cargo[]>("/api/cargos").then(setCargos).catch(()=>{}) }, [])
+  useEffect(()=>{ getJSON<any[]>("/api/avaliacoes").then(setAvaliacoes).catch(()=>{}) }, [])
+  useEffect(()=>{ const u = onDataChanged(()=>{ getJSON<any[]>("/api/avaliacoes").then(setAvaliacoes).catch(()=>{}) }); return u }, [])
+  const totalCargos = cargos.length
+  const totalAval = avaliacoes.length
+  const pendentes = Math.max(0, totalCargos - totalAval)
+  const media = totalAval ? Math.round(avaliacoes.reduce((s,a)=>s+(a.pontuacao||0),0)/totalAval) : 0
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-4 gap-6">
-        <SummaryCard title="Total de Cargos" value="5" />
-        <SummaryCard title="Cargos Avaliados" value="3" />
-        <SummaryCard title="Pendentes" value="2" />
-        <SummaryCard title="Pontuação Média" value="348" />
+        <SummaryCard title="Total de Cargos" value={String(cargos.length)} />
+        <SummaryCard title="Cargos Avaliados" value={String(totalAval)} />
+        <SummaryCard title="Pendentes" value={String(pendentes)} />
+        <SummaryCard title="Pontuação Média" value={String(media)} />
       </div>
 
       {/* Filters */}
@@ -530,40 +553,18 @@ function AvaliacaoPage() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cargo</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Área</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pontuação</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data Avaliação</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avaliador</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                <EvaluationRow
-                  position="Analista de Dados Junior"
-                  area="Tecnologia"
-                  status="Avaliado"
-                  points={285}
-                  date="09/01/2024"
-                  evaluator="Maria Santos – Gestora de RH"
-                />
-                <EvaluationRow
-                  position="Gerente de Vendas"
-                  area="Comercial"
-                  status="Avaliado"
-                  points={420}
-                  date="15/01/2024"
-                  evaluator="João Silva – Diretor Comercial"
-                />
-                <EvaluationRow
-                  position="Designer UX/UI"
-                  area="Design"
-                  status="Avaliado"
-                  points={340}
-                  date="20/01/2024"
-                  evaluator="Ana Costa – Head de Design"
-                />
-                <EvaluationRow position="Coordenador de Marketing" area="Marketing" status="Pendente" />
-                <EvaluationRow position="Assistente Administrativo" area="Administrativo" status="Pendente" />
+                {avaliacoes.map(a => (
+                  <tr key={a.id}>
+                    <td className="px-6 py-4 text-sm text-gray-900">{a.funcionario}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{a.pontuacao}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{a.status}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -850,6 +851,11 @@ function CompanyRow({
   )
 }
 
+
+function NovaTrilhaButton({ onCreated }:{ onCreated:()=>void }){
+  return <Button variant="outline" onClick={()=>toast({title:'Em breve', description:'CRUD de trilhas será adicionado'})}>+ Nova Trilha</Button>
+}
+
 function PositionCard({ title, area, level, points }: { title: string; area: string; level: string; points: number }) {
   return (
     <Card>
@@ -874,6 +880,7 @@ function PositionCard({ title, area, level, points }: { title: string; area: str
 }
 
 function EmployeeRow({
+  id,
   name,
   position,
   area,
@@ -882,6 +889,7 @@ function EmployeeRow({
   salary,
   status,
 }: {
+  id: number
   name: string
   position: string
   area: string
@@ -913,6 +921,9 @@ function EmployeeRow({
           </button>
           <button className="text-gray-400 hover:text-gray-600">
             <Edit className="w-4 h-4" />
+          </button>
+          <button className="text-gray-400 hover:text-red-600" onClick={async()=>{ try { await delJSON(`/api/funcionarios/${id}`); } catch(e){} }}>
+            <Trash className="w-4 h-4" />
           </button>
         </div>
       </td>
@@ -961,6 +972,7 @@ function OrgChartNode({
   subordinates,
   type,
 }: {
+  id: number
   name: string
   position: string
   area?: string

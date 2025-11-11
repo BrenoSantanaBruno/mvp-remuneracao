@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { postJSON } from '@/lib/api'
@@ -46,7 +47,15 @@ export function NovoCargoButton({ onCreated }:{ onCreated:(c:Cargo)=>void }){
           <div><Label>Título</Label><Input {...register('titulo')} /></div>
           <div><Label>Área</Label><Input {...register('area')} /></div>
           <div className="grid grid-cols-2 gap-2">
-            <div><Label>Nível</Label><Input {...register('nivel' as const)} placeholder="Júnior/Pleno/Sênior" /></div>
+            <div><Label>Nível</Label><input type='hidden' {...register('nivel' as const)} />
+              <Select onValueChange={(v)=>{ (register('nivel').onChange as any)({ target:{ value:v }}) }}>
+                <SelectTrigger><SelectValue placeholder="Selecione o nível" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Júnior">Júnior</SelectItem>
+                  <SelectItem value="Pleno">Pleno</SelectItem>
+                  <SelectItem value="Sênior">Sênior</SelectItem>
+                </SelectContent>
+              </Select></div>
             <div><Label>Pontos</Label><Input type="number" {...register('pontos' as const)} /></div>
           </div>
           <DialogFooter>

@@ -347,3 +347,8 @@ MIT. Use, estude, modifique e compartilhe com os devidos créditos.
 
 ```
 ```
+
+
+## Notas rápidas
+- Rota `/dashboard` disponível (espelha `/`).
+- `lib/events.ts` fornece um event bus simples (`onDataChanged/emitDataChanged`).
