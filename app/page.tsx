@@ -271,16 +271,18 @@ function DashboardPage() {
 function EstruturaPage({ selectedTab, setSelectedTab }: { selectedTab: string; setSelectedTab: (tab: string) => void }) {
     const [empresas, setEmpresas] = useState<Empresa[]>([])
     const [estabs, setEstabs] = useState<any[]>([])
-    const [lotacoes, setLotacoes] = useState<any[]>([])
     const [centros, setCentros] = useState<any[]>([])
-    const [unidades, setUnidades] = useState<any[]>([])
+    const [sindicatos, setSindicatos] = useState<any[]>([])
+    const [convencoes, setConvencoes] = useState<any[]>([])
+    const [quadros, setQuadros] = useState<any[]>([])
 
     const refetch = ()=>{
         getJSON<Empresa[]>("/api/empresas").then(setEmpresas).catch(()=>{})
         getJSON<any[]>("/api/estabelecimentos").then(setEstabs).catch(()=>{})
-        getJSON<any[]>("/api/lotacoes").then(setLotacoes).catch(()=>{})
         getJSON<any[]>("/api/centros").then(setCentros).catch(()=>{})
-        getJSON<any[]>("/api/unidades").then(setUnidades).catch(()=>{})
+        getJSON<any[]>("/api/sindicatos").then(setSindicatos).catch(()=>{})
+        getJSON<any[]>("/api/convencoes").then(setConvencoes).catch(()=>{})
+        getJSON<any[]>("/api/quadros").then(setQuadros).catch(()=>{})
     }
     useEffect(refetch, [])
     useEffect(()=>{ const u = onDataChanged(refetch); return u }, [])
@@ -292,13 +294,13 @@ function EstruturaPage({ selectedTab, setSelectedTab }: { selectedTab: string; s
             <div className="grid grid-cols-5 gap-6">
                 <SummaryCard title="Empresas" value={String(empresas.length)} />
                 <SummaryCard title="Estabelecimentos" value={String(estabs.length)} />
-                <SummaryCard title="Lotações" value={String(lotacoes.length)} />
                 <SummaryCard title="Centros Custo" value={String(centros.length)} />
-                <SummaryCard title="Unidades" value={String(unidades.length)} />
+                <SummaryCard title="Sindicatos" value={String(sindicatos.length)} />
+                <SummaryCard title="Convenções" value={String(convencoes.length)} />
             </div>
 
             <div className="flex gap-2 border-b border-gray-200">
-                {["empresas", "estabelecimentos", "lotacoes", "centros", "unidades"].map((tab) => (
+                {["empresas", "estabelecimentos", "centros", "sindicatos", "convencoes", "quadros"].map((tab) => (
                     <button
                         key={tab}
                         onClick={() => setSelectedTab(tab)}
