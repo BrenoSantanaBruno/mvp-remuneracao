@@ -32,7 +32,6 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
     Sheet,
     SheetContent,
@@ -92,7 +91,6 @@ type MenuItem =
 
 export default function HRManagementSystem() {
     const [activeMenu, setActiveMenu] = useState<MenuItem>("dashboard")
-    const [selectedTab, setSelectedTab] = useState("empresas")
 
     return (
         <div className="flex min-h-screen bg-[#F5F5F7]">
@@ -205,25 +203,8 @@ export default function HRManagementSystem() {
                     </div>
                 </header>
 
-                {/* Subheader com tabs rápidas */}
-                <div className="border-b bg-white px-6 py-3 flex items-center justify-between">
-                    <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-[480px]">
-                        <TabsList className="grid grid-cols-4 w-full">
-                            <TabsTrigger value="empresas" className="text-xs">
-                                Empresas
-                            </TabsTrigger>
-                            <TabsTrigger value="cargos" className="text-xs">
-                                Cargos
-                            </TabsTrigger>
-                            <TabsTrigger value="funcionarios" className="text-xs">
-                                Funcionários
-                            </TabsTrigger>
-                            <TabsTrigger value="tabelas" className="text-xs">
-                                Tabelas
-                            </TabsTrigger>
-                        </TabsList>
-                    </Tabs>
-
+                {/* Subheader superior – só status da API e resumo da aula */}
+                <div className="border-b bg-white px-6 py-3 flex items-center justify-end">
                     <div className="flex items-center gap-2">
                         <TooltipProvider>
                             <Tooltip>
@@ -255,7 +236,8 @@ export default function HRManagementSystem() {
                                 <ScrollArea className="mt-4 h-[80vh] pr-2">
                                     <div className="space-y-4 text-sm text-gray-700">
                                         <p>
-                                            Nesta aula, o objetivo é<span className="font-semibold"> conectar o layout que já existe</span> com
+                                            Nesta aula, o objetivo é
+                                            <span className="font-semibold"> conectar o layout que já existe</span> com
                                             as chamadas reais para a API em Go e começar a desenhar a jornada de cadastros completa:
                                         </p>
                                         <ul className="list-disc pl-5 space-y-1">
@@ -514,10 +496,32 @@ function EmpresasView() {
         }
     }, [])
 
-    const filtered = empresas.filter((e) =>
-        e.nome?.toLowerCase().includes(search.toLowerCase()) ||
-        e.cnpj?.toLowerCase().includes(search.toLowerCase()),
-    )
+    const termo = search.trim().toLowerCase()
+
+    // Se não tiver busca, NÃO filtra nada
+    const filtered = termo
+        ? empresas.filter((e) => {
+            const nome =
+                (e as any).nome ??
+                (e as any).razao_social ??
+                (e as any).razaoSocial ??
+                (e as any).name ??
+                (e as any).nome_fantasia ??
+                (e as any).nomeFantasia ??
+                (e as any).fantasia ??
+                ""
+
+            const doc =
+                (e as any).cnpj ??
+                (e as any).codigo ??
+                (e as any).code ??
+                ""
+
+            const n = String(nome).toLowerCase()
+            const d = String(doc).toLowerCase()
+            return n.includes(termo) || d.includes(termo)
+        })
+        : empresas
 
     const handleDelete = async (id?: number) => {
         if (!id) return
@@ -533,11 +537,21 @@ function EmpresasView() {
 
     const handleExport = () => {
         downloadCSV(
-            empresas.map((e) => ({
+            empresas.map((e: any) => ({
                 ID: e.id,
-                Nome: e.nome,
-                CNPJ: e.cnpj,
-                "Data criação": e.created_at,
+                "Razão social":
+                    e.razao_social ??
+                    e.razaoSocial ??
+                    e.nome ??
+                    e.name ??
+                    "",
+                "Nome fantasia":
+                    e.nome_fantasia ??
+                    e.nomeFantasia ??
+                    e.fantasia ??
+                    "",
+                "CNPJ / Código": e.cnpj ?? e.codigo ?? e.code ?? "",
+                "Data criação": e.created_at ?? e.createdAt ?? "",
             })),
             "empresas.csv",
         )
@@ -557,7 +571,7 @@ function EmpresasView() {
                         <Search className="h-3.5 w-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" />
                         <Input
                             className="pl-7 h-8 w-[180px]"
-                            placeholder="Buscar por nome ou CNPJ..."
+                            placeholder="Buscar por nome / CNPJ / código..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
@@ -566,7 +580,7 @@ function EmpresasView() {
                         <Download className="h-3.5 w-3.5 mr-1" />
                         CSV
                     </Button>
-                    <NovaEmpresaButton onCreated={(e) => setEmpresas((prev) => [...prev, e])} />
+                    <NovaEmpresaButton onCreated={(e: any) => setEmpresas((prev) => [...prev, e])} />
                 </div>
             </div>
 
@@ -576,12 +590,18 @@ function EmpresasView() {
                         <table className="w-full">
                             <thead className="bg-gray-50 border-b border-gray-200">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">CNPJ</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                    Nome
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                    CNPJ / Código
+                                </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                                     Data de criação
                                 </th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ações</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                                    Ações
+                                </th>
                             </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
@@ -598,38 +618,58 @@ function EmpresasView() {
                                     </td>
                                 </tr>
                             ) : (
-                                filtered.map((e) => (
-                                    <tr key={e.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-3 text-sm font-medium text-gray-900">{e.nome}</td>
-                                        <td className="px-6 py-3 text-sm text-gray-700">{e.cnpj}</td>
-                                        <td className="px-6 py-3 text-sm text-gray-700">
-                                            {e.created_at ? formatDate(e.created_at) : "-"}
-                                        </td>
-                                        <td className="px-6 py-3 text-sm text-right">
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger>
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7">
-                                                        <MoreHorizontal className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                                                    <DropdownMenuItem onClick={() => alert("Em breve: editar empresa")}>
-                                                        Editar
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem
-                                                        className="text-red-600"
-                                                        onClick={() => handleDelete(e.id)}
-                                                    >
-                                                        <Trash2 className="h-3 w-3 mr-1" />
-                                                        Excluir
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </td>
-                                    </tr>
-                                ))
+                                filtered.map((e: any) => {
+                                    const nome =
+                                        e.nome ??
+                                        e.razao_social ??
+                                        e.razaoSocial ??
+                                        e.name ??
+                                        e.nome_fantasia ??
+                                        e.nomeFantasia ??
+                                        e.fantasia ??
+                                        "-"
+
+                                    const doc = e.cnpj ?? e.codigo ?? e.code ?? "-"
+
+                                    const created = e.created_at ?? e.createdAt
+
+                                    return (
+                                        <tr key={e.id ?? `${nome}-${doc}`}>
+                                            <td className="px-6 py-3 text-sm font-medium text-gray-900">
+                                                {nome}
+                                            </td>
+                                            <td className="px-6 py-3 text-sm text-gray-700">
+                                                {doc}
+                                            </td>
+                                            <td className="px-6 py-3 text-sm text-gray-700">
+                                                {created ? formatDate(created) : "-"}
+                                            </td>
+                                            <td className="px-6 py-3 text-sm text-right">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger>
+                                                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                                                        <DropdownMenuItem onClick={() => alert("Em breve: editar empresa")}>
+                                                            Editar
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem
+                                                            className="text-red-600"
+                                                            onClick={() => handleDelete(e.id)}
+                                                        >
+                                                            <Trash2 className="h-3 w-3 mr-1" />
+                                                            Excluir
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </td>
+                                        </tr>
+                                    )
+                                })
                             )}
                             </tbody>
                         </table>
@@ -639,6 +679,7 @@ function EmpresasView() {
         </div>
     )
 }
+
 
 /* CARGOS */
 
