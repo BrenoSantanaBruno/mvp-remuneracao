@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 
-import { getJSON, delJSON } from "@/lib/api"
+import { getJSON, postJSON, delJSON } from "@/lib/api"
 import { Toaster } from "@/components/ui/toaster"
 import { downloadCSV } from "@/lib/csv"
 import { onDataChanged } from "@/lib/events"
@@ -31,7 +31,6 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Label } from "@/components/ui/label"
 import {
     Sheet,
     SheetContent,
@@ -50,9 +49,7 @@ import {
     BarChart3,
     Settings2,
     Download,
-    ChevronRight,
     Menu,
-    Plus,
     Trash2,
     MoreHorizontal,
     FileText,
@@ -60,10 +57,8 @@ import {
     ArrowUpRight,
     Filter,
     Search,
-    ChevronDown,
     CircleDot,
     Target,
-    GitBranch,
     Network,
     Eye,
 } from "lucide-react"
@@ -88,6 +83,34 @@ type MenuItem =
     | "organograma"
     | "tabelas"
     | "relatorios"
+
+// Centro de Custo (estrutura mínima para funcionar com a API)
+type CentroCusto = {
+    id?: number
+    codigo?: string
+    code?: string
+    sigla?: string
+    nome?: string
+    descricao?: string
+    description?: string
+    empresa_id?: number | null
+}
+
+// calcula próximo código CC-00X com base na lista atual
+function getNextCentroCodigo(centros: CentroCusto[]): string {
+    const prefix = "CC-"
+    const nums = centros
+        .map((c) => {
+            const raw =
+                (c.codigo ?? c.code ?? c.sigla ?? "").toString().toUpperCase().trim()
+            const match = raw.match(/^CC-(\d{3})$/)
+            return match ? Number(match[1]) : null
+        })
+        .filter((n): n is number => n !== null)
+
+    const nextNum = nums.length ? Math.max(...nums) + 1 : 1
+    return `${prefix}${String(nextNum).padStart(3, "0")}`
+}
 
 export default function HRManagementSystem() {
     const [activeMenu, setActiveMenu] = useState<MenuItem>("dashboard")
@@ -203,7 +226,7 @@ export default function HRManagementSystem() {
                     </div>
                 </header>
 
-                {/* Subheader superior – só status da API e resumo da aula */}
+                {/* Subheader - só status da API + resumo da aula */}
                 <div className="border-b bg-white px-6 py-3 flex items-center justify-end">
                     <div className="flex items-center gap-2">
                         <TooltipProvider>
@@ -421,8 +444,7 @@ function DashboardView() {
                                 <span className="font-mono text-xs">NovaEmpresaButton</span>.
                             </li>
                             <li>
-                                Criar <span className="font-semibold">centros de custo / áreas</span> usando o{" "}
-                                <span className="font-mono text-xs">NovoGenericoButton</span> (centros de custo).
+                                Criar <span className="font-semibold">centros de custo / áreas</span> (como CC-001 Administrativo, CC-002 TI).
                             </li>
                             <li>
                                 Cadastrar <span className="font-semibold">cargos</span> já vinculando à empresa e ao centro de custo
@@ -467,29 +489,46 @@ function DashboardView() {
     )
 }
 
-/* EMPRESAS */
+/* EMPRESAS + CENTROS DE CUSTO */
 
 function EmpresasView() {
     const [empresas, setEmpresas] = useState<Empresa[]>([])
-    const [loading, setLoading] = useState(false)
+    const [centros, setCentros] = useState<CentroCusto[]>([])
+    const [loadingEmpresas, setLoadingEmpresas] = useState(false)
+    const [loadingCentros, setLoadingCentros] = useState(false)
     const [search, setSearch] = useState("")
+
+    const [creatingCentro, setCreatingCentro] = useState(false)
+    const [newCentroCodigo, setNewCentroCodigo] = useState("")
+    const [newCentroNome, setNewCentroNome] = useState("")
 
     useEffect(() => {
         let ignore = false
-        const fetchEmpresas = async () => {
+
+        const fetchAll = async () => {
             try {
-                setLoading(true)
-                const data = await getJSON<Empresa[]>("/api/empresas")
-                if (!ignore) setEmpresas(data)
+                setLoadingEmpresas(true)
+                setLoadingCentros(true)
+
+                const [empresasData, centrosData] = await Promise.all([
+                    getJSON<Empresa[]>("/api/empresas"),
+                    getJSON<CentroCusto[]>("/api/centros"),
+                ])
+
+                if (ignore) return
+                setEmpresas(empresasData)
+                setCentros(centrosData)
             } catch (e) {
-                console.error("Erro ao buscar empresas:", e)
+                console.error("Erro ao buscar empresas/centros:", e)
             } finally {
-                if (!ignore) setLoading(false)
+                if (ignore) return
+                setLoadingEmpresas(false)
+                setLoadingCentros(false)
             }
         }
 
-        fetchEmpresas()
-        const unsub = onDataChanged(fetchEmpresas)
+        fetchAll()
+        const unsub = onDataChanged(fetchAll)
         return () => {
             ignore = true
             unsub()
@@ -499,22 +538,19 @@ function EmpresasView() {
     const termo = search.trim().toLowerCase()
 
     // Se não tiver busca, NÃO filtra nada
-    const filtered = termo
+    const filteredEmpresas = termo
         ? empresas.filter((e) => {
             const nome =
                 (e as any).nome ??
                 (e as any).razao_social ??
                 (e as any).razaoSocial ??
-                (e as any).name ??
                 (e as any).nome_fantasia ??
                 (e as any).nomeFantasia ??
-                (e as any).fantasia ??
                 ""
 
             const doc =
                 (e as any).cnpj ??
                 (e as any).codigo ??
-                (e as any).code ??
                 ""
 
             const n = String(nome).toLowerCase()
@@ -523,7 +559,7 @@ function EmpresasView() {
         })
         : empresas
 
-    const handleDelete = async (id?: number) => {
+    const handleDeleteEmpresa = async (id?: number) => {
         if (!id) return
         if (!window.confirm("Tem certeza que deseja excluir esta empresa?")) return
 
@@ -535,30 +571,65 @@ function EmpresasView() {
         }
     }
 
-    const handleExport = () => {
+    const handleExportEmpresas = () => {
         downloadCSV(
             empresas.map((e: any) => ({
                 ID: e.id,
                 "Razão social":
-                    e.razao_social ??
-                    e.razaoSocial ??
-                    e.nome ??
-                    e.name ??
-                    "",
+                    e.razao_social ?? e.razaoSocial ?? e.nome ?? "",
                 "Nome fantasia":
-                    e.nome_fantasia ??
-                    e.nomeFantasia ??
-                    e.fantasia ??
-                    "",
-                "CNPJ / Código": e.cnpj ?? e.codigo ?? e.code ?? "",
+                    e.nome_fantasia ?? e.nomeFantasia ?? "",
+                "CNPJ / Código": e.cnpj ?? e.codigo ?? "",
                 "Data criação": e.created_at ?? e.createdAt ?? "",
             })),
             "empresas.csv",
         )
     }
 
+    const handleCreateCentro = async () => {
+        const codigo = newCentroCodigo.trim()
+        const nome = newCentroNome.trim()
+
+        if (!codigo || !nome) {
+            alert("Preencha o nome do centro de custo.")
+            return
+        }
+
+        try {
+            // manda nome em mais de um campo pra casar com o modelo do backend
+            const payload: any = {
+                codigo,
+                nome,
+                descricao: nome,
+                description: nome,
+            }
+
+            const created = await postJSON<CentroCusto>("/api/centros", payload)
+            setCentros((prev) => [...prev, created])
+            setNewCentroCodigo("")
+            setNewCentroNome("")
+            setCreatingCentro(false)
+        } catch (e) {
+            console.error("Erro ao criar centro de custo:", e)
+            alert("Erro ao criar centro de custo. Veja os logs da API.")
+        }
+    }
+
+    const handleDeleteCentro = async (id?: number) => {
+        if (!id) return
+        if (!window.confirm("Tem certeza que deseja excluir este centro de custo?")) return
+
+        try {
+            await delJSON(`/api/centros/${id}`)
+            setCentros((prev) => prev.filter((c) => c.id !== id))
+        } catch (e) {
+            console.error("Erro ao deletar centro de custo:", e)
+        }
+    }
+
     return (
-        <div className="space-y-4">
+        <div className="space-y-6">
+            {/* Empresas */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div>
                     <h2 className="text-lg font-semibold">Empresas & Unidades de Negócio</h2>
@@ -576,7 +647,7 @@ function EmpresasView() {
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
-                    <Button variant="outline" size="sm" onClick={handleExport}>
+                    <Button variant="outline" size="sm" onClick={handleExportEmpresas}>
                         <Download className="h-3.5 w-3.5 mr-1" />
                         CSV
                     </Button>
@@ -605,31 +676,29 @@ function EmpresasView() {
                             </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                            {loading ? (
+                            {loadingEmpresas ? (
                                 <tr>
                                     <td className="px-6 py-4 text-sm text-gray-500" colSpan={4}>
                                         Carregando empresas...
                                     </td>
                                 </tr>
-                            ) : filtered.length === 0 ? (
+                            ) : filteredEmpresas.length === 0 ? (
                                 <tr>
                                     <td className="px-6 py-4 text-sm text-gray-500" colSpan={4}>
                                         Nenhuma empresa cadastrada ainda.
                                     </td>
                                 </tr>
                             ) : (
-                                filtered.map((e: any) => {
+                                filteredEmpresas.map((e: any) => {
                                     const nome =
                                         e.nome ??
                                         e.razao_social ??
                                         e.razaoSocial ??
-                                        e.name ??
                                         e.nome_fantasia ??
                                         e.nomeFantasia ??
-                                        e.fantasia ??
                                         "-"
 
-                                    const doc = e.cnpj ?? e.codigo ?? e.code ?? "-"
+                                    const doc = e.cnpj ?? e.codigo ?? "-"
 
                                     const created = e.created_at ?? e.createdAt
 
@@ -659,7 +728,144 @@ function EmpresasView() {
                                                         <DropdownMenuSeparator />
                                                         <DropdownMenuItem
                                                             className="text-red-600"
-                                                            onClick={() => handleDelete(e.id)}
+                                                            onClick={() => handleDeleteEmpresa(e.id)}
+                                                        >
+                                                            <Trash2 className="h-3 w-3 mr-1" />
+                                                            Excluir
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </td>
+                                        </tr>
+                                    )
+                                })
+                            )}
+                            </tbody>
+                        </table>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Centros de custo */}
+            <Card>
+                <CardHeader className="px-6 py-4">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <div>
+                            <CardTitle className="text-base">Centros de custo</CardTitle>
+                            <CardDescription>
+                                Estruturas como CC-001 Administrativo, CC-002 TI. São usadas depois nos cadastros de cargos.
+                            </CardDescription>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    const next = getNextCentroCodigo(centros)
+                                    setNewCentroCodigo(next)
+                                    setNewCentroNome("")
+                                    setCreatingCentro(true)
+                                }}
+                            >
+                                + Novo centro de custo
+                            </Button>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                    Código
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                    Nome
+                                </th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                                    Ações
+                                </th>
+                            </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                            {creatingCentro && (
+                                <tr className="bg-amber-50/40">
+                                    <td className="px-6 py-3 text-sm">
+                                        <Input
+                                            className="h-8 bg-gray-50"
+                                            value={newCentroCodigo}
+                                            readOnly
+                                        />
+                                    </td>
+                                    <td className="px-6 py-3 text-sm">
+                                        <Input
+                                            className="h-8"
+                                            placeholder="Ex: Administrativo"
+                                            value={newCentroNome}
+                                            onChange={(e) => setNewCentroNome(e.target.value)}
+                                        />
+                                    </td>
+                                    <td className="px-6 py-3 text-sm text-right space-x-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                                setCreatingCentro(false)
+                                                setNewCentroCodigo("")
+                                                setNewCentroNome("")
+                                            }}
+                                        >
+                                            Cancelar
+                                        </Button>
+                                        <Button size="sm" onClick={handleCreateCentro}>
+                                            Salvar
+                                        </Button>
+                                    </td>
+                                </tr>
+                            )}
+
+                            {loadingCentros ? (
+                                <tr>
+                                    <td className="px-6 py-4 text-sm text-gray-500" colSpan={3}>
+                                        Carregando centros de custo...
+                                    </td>
+                                </tr>
+                            ) : centros.length === 0 && !creatingCentro ? (
+                                <tr>
+                                    <td className="px-6 py-4 text-sm text-gray-500" colSpan={3}>
+                                        Nenhum centro de custo cadastrado ainda.
+                                    </td>
+                                </tr>
+                            ) : (
+                                centros.map((c) => {
+                                    const codigo = c.codigo ?? c.code ?? c.sigla ?? "-"
+                                    const nome = c.nome ?? c.descricao ?? c.description ?? "-"
+
+                                    return (
+                                        <tr key={c.id ?? codigo}>
+                                            <td className="px-6 py-3 text-sm font-medium text-gray-900">
+                                                {codigo}
+                                            </td>
+                                            <td className="px-6 py-3 text-sm text-gray-700">
+                                                {nome}
+                                            </td>
+                                            <td className="px-6 py-3 text-sm text-right">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger>
+                                                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                                                        <DropdownMenuItem onClick={() => alert("Em breve: editar centro de custo")}>
+                                                            Editar
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem
+                                                            className="text-red-600"
+                                                            onClick={() => handleDeleteCentro(c.id)}
                                                         >
                                                             <Trash2 className="h-3 w-3 mr-1" />
                                                             Excluir
@@ -679,7 +885,6 @@ function EmpresasView() {
         </div>
     )
 }
-
 
 /* CARGOS */
 
