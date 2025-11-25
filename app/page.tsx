@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 
-import { getJSON, postJSON, delJSON } from "@/lib/api"
+import { getJSON, postJSON, delJSON, putJSON } from "@/lib/api"
 import { Toaster } from "@/components/ui/toaster"
 import { downloadCSV } from "@/lib/csv"
 import { onDataChanged } from "@/lib/events"
@@ -88,6 +88,7 @@ type MenuItem =
 type CentroCusto = {
     id?: number
     codigo?: string
+    customCode?: string
     code?: string
     sigla?: string
     nome?: string
@@ -148,7 +149,7 @@ function setEmpresaDoc(obj: any, value: string) {
 // helpers para CENTRO DE CUSTO
 
 function getCentroCodigo(c: CentroCusto): string {
-    return (c.codigo ?? c.code ?? c.sigla ?? "").toString()
+    return (c.customCode ?? c.codigo ?? c.code ?? c.sigla ?? "").toString()
 }
 
 function getCentroNome(c: CentroCusto): string {
@@ -159,6 +160,7 @@ function setCentroCodigo(c: any, value: string) {
     c.codigo = value
     c.code = value
     c.sigla = value
+    c.customCode = value
 }
 
 function setCentroNome(c: any, value: string) {
@@ -565,6 +567,7 @@ function DashboardView() {
 function EmpresasView() {
     const [empresas, setEmpresas] = useState<Empresa[]>([])
     const [centros, setCentros] = useState<CentroCusto[]>([])
+    const [estabelecimentoDefaultId, setEstabelecimentoDefaultId] = useState<number>(1)
     const [loadingEmpresas, setLoadingEmpresas] = useState(false)
     const [loadingCentros, setLoadingCentros] = useState(false)
     const [search, setSearch] = useState("")
@@ -578,6 +581,7 @@ function EmpresasView() {
     const [editingCentroId, setEditingCentroId] = useState<number | null>(null)
     const [editingCentro, setEditingCentro] = useState<any | null>(null)
     const [newCentroCodigo, setNewCentroCodigo] = useState("")
+    const [newCentroCustomCode, setNewCentroCustomCode] = useState("")
     const [newCentroNome, setNewCentroNome] = useState("")
 
     useEffect(() => {
@@ -596,6 +600,9 @@ function EmpresasView() {
                 if (ignore) return
                 setEmpresas(empresasData)
                 setCentros(centrosData)
+                if (empresasData?.length) {
+                    setEstabelecimentoDefaultId(empresasData[0].id ?? 1)
+                }
             } catch (e) {
                 console.error("Erro ao buscar empresas/centros:", e)
             } finally {
@@ -675,21 +682,26 @@ function EmpresasView() {
 
     const handleCreateCentro = async () => {
         const codigo = newCentroCodigo.trim()
+        const custom = newCentroCustomCode.trim() || codigo
         const nome = newCentroNome.trim()
 
-        if (!codigo || !nome) {
+        if (!custom || !nome) {
             alert("Preencha o nome do centro de custo.")
             return
         }
 
         try {
             const payload: any = {}
-            setCentroCodigo(payload, codigo)
+            setCentroCodigo(payload, custom)
             setCentroNome(payload, nome)
+            payload.customCode = custom
+            payload.descricao = nome
+            payload.estabelecimentoId = estabelecimentoDefaultId
 
             const created = await postJSON<CentroCusto>("/api/centros", payload)
             setCentros((prev) => [...prev, created])
             setNewCentroCodigo("")
+            setNewCentroCustomCode("")
             setNewCentroNome("")
             setCreatingCentro(false)
         } catch (e) {
@@ -713,6 +725,7 @@ function EmpresasView() {
         if (!editingCentro || !editingCentroId) return
         try {
             const payload: any = { ...editingCentro }
+            payload.customCode = getCentroCodigo(payload)
             const updated = await putJSON<CentroCusto>(`/api/centros/${editingCentroId}`, payload)
             setCentros((prev) =>
                 prev.map((c) => (c.id === editingCentroId ? updated : c)),
@@ -904,14 +917,15 @@ function EmpresasView() {
                             <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => {
-                                    const next = getNextCentroCodigo(centros)
-                                    setNewCentroCodigo(next)
-                                    setNewCentroNome("")
-                                    setCreatingCentro(true)
-                                    setEditingCentroId(null)
-                                    setEditingCentro(null)
-                                }}
+                            onClick={() => {
+                                const next = getNextCentroCodigo(centros)
+                                setNewCentroCodigo(next)
+                                setNewCentroCustomCode(next)
+                                setNewCentroNome("")
+                                setCreatingCentro(true)
+                                setEditingCentroId(null)
+                                setEditingCentro(null)
+                            }}
                             >
                                 + Novo centro de custo
                             </Button>
@@ -940,8 +954,8 @@ function EmpresasView() {
                                     <td className="px-6 py-3 text-sm">
                                         <Input
                                             className="h-8 bg-gray-50"
-                                            value={newCentroCodigo}
-                                            readOnly
+                                            value={newCentroCustomCode || newCentroCodigo}
+                                            onChange={(e) => setNewCentroCustomCode(e.target.value)}
                                         />
                                     </td>
                                     <td className="px-6 py-3 text-sm">

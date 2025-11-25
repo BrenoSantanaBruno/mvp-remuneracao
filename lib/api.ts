@@ -32,3 +32,17 @@ export async function delJSON(path: string): Promise<void> {
     if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status} - ${url}`)
     try { emitDataChanged(null) } catch {}
 }
+
+/** PUT tipado */
+export async function putJSON<R = any, B = any>(path: string, body: B): Promise<R> {
+    const url = path.startsWith("http") ? path : `${API_BASE}${path}`
+    const res = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status} - ${url}`)
+    const data = (await res.json()) as R
+    try { emitDataChanged(data) } catch {}
+    return data
+}

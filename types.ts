@@ -1,4 +1,13 @@
-export type Empresa = { id:number; code?:string; name:string; fantasia:string; status?:string }
+export type Empresa = {
+  id:number
+  code?:string
+  name:string      // razão social
+  razaoSocial?:string
+  fantasia:string  // nome fantasia
+  nomeFantasia?:string
+  status?:string
+  estabelecimentoMatrizId?:number|null
+}
 
 export type Estabelecimento = {
   id:number
@@ -7,16 +16,24 @@ export type Estabelecimento = {
   tipo:'matriz'|'filial'
   cnpj:string
   cnae?:string
-  endereco?:string
+  logradouro?:string
+  numero?:string
+  complemento?:string
+  bairro?:string
   cidade?:string
   estado?:string
+  cep?:string
   ativo?:boolean
+  sindicatoPatronalId?:number
+  sindicatoTrabalhadoresId?:number
+  consolidarGuiasNaMatriz?:boolean
 }
 
 export type CentroCusto = {
   id:number
   estabelecimentoId:number
   codigo:string
+  customCode?:string
   descricao:string
   subdivisao?:string
   ativo:boolean
@@ -26,6 +43,7 @@ export type Sindicato = {
   id:number
   nome:string
   tipo:'patronal'|'trabalhadores'
+  cnpj?:string
   cidade?:string
   uf?:string
   sindicatoPatronalId?:number

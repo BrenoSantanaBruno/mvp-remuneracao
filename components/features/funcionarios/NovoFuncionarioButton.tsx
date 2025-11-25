@@ -15,7 +15,8 @@ import type { Funcionario } from "@/types"
 const Schema = z.object({
     nome: z.string().min(2),
     cargo: z.string().min(1, "Selecione um cargo"),
-    area: z.string().min(1),
+    estabelecimentoId: z.coerce.number().min(1, "Selecione o estabelecimento"),
+    centroCustoId: z.coerce.number().min(1, "Selecione o centro de custo"),
     gestor: z.string().optional().default(""),
     admissao: z.string().min(4, "Defina a data"),
     salario: z.coerce.number().min(0),
@@ -26,6 +27,8 @@ type Form = z.infer<typeof Schema>
 export default function NovoFuncionarioButton({ onCreated }:{ onCreated: (f:Funcionario)=>void }) {
     const [open, setOpen] = useState(false)
     const [cargosOpts, setCargosOpts] = useState<any[]>([])
+    const [centrosOpts, setCentrosOpts] = useState<any[]>([])
+    const [estabsOpts, setEstabsOpts] = useState<any[]>([])
     const { toast } = useToast()
 
     const { register, handleSubmit, control, formState:{ isSubmitting, errors }, reset, setValue } = useForm<Form>({
@@ -40,6 +43,14 @@ export default function NovoFuncionarioButton({ onCreated }:{ onCreated: (f:Func
                 if (list?.length) setValue("cargo", list[0].titulo, { shouldValidate: true })
             })
             .catch(()=>{})
+        getJSON<any[]>("/api/centros").then(list=>{
+            setCentrosOpts(list||[])
+            if (list?.length){
+                setValue("centroCustoId", list[0].id, { shouldValidate:true })
+                if (list[0].estabelecimentoId) setValue("estabelecimentoId", list[0].estabelecimentoId, { shouldValidate:true })
+            }
+        }).catch(()=>{})
+        getJSON<any[]>("/api/estabelecimentos").then(setEstabsOpts).catch(()=>{})
     }, [setValue])
 
     async function onSubmit(values: Form){
@@ -90,13 +101,62 @@ export default function NovoFuncionarioButton({ onCreated }:{ onCreated: (f:Func
                         </div>
 
                         <div className="grid grid-cols-2 gap-2">
-                            <div><Label>Área</Label><Input {...register("area")} /></div>
-                            <div><Label>Gestor</Label><Input {...register("gestor")} /></div>
+                            <div>
+                                <Label>Estabelecimento</Label>
+                                <Controller
+                                    control={control}
+                                    name="estabelecimentoId"
+                                    render={({ field }) => (
+                                        <Select value={String(field.value ?? "")} onValueChange={(v)=>field.onChange(Number(v))}>
+                                            <SelectTrigger><SelectValue placeholder="Selecione o estabelecimento" /></SelectTrigger>
+                                            <SelectContent>
+                                                {(estabsOpts||[]).map((e:any)=>(
+                                                    <SelectItem key={e.id} value={String(e.id)}>{e.codigo ?? e.cnpj ?? e.id}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                />
+                            </div>
+                            <div>
+                                <Label>Gestor</Label>
+                                <Input {...register("gestor")} />
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2">
-                            <div><Label>Admissão</Label><Input type="date" {...register("admissao" as const)} /></div>
-                            <div><Label>Salário</Label><Input type="number" step="0.01" {...register("salario" as const)} /></div>
+                            <div>
+                                <Label>Centro de Custo</Label>
+                                <Controller
+                                    control={control}
+                                    name="centroCustoId"
+                                    render={({ field }) => (
+                                        <Select value={String(field.value ?? "")} onValueChange={(v)=>{
+                                            const id = Number(v)
+                                            field.onChange(id)
+                                            const centro = (centrosOpts||[]).find((c:any)=>c.id===id)
+                                            if (centro?.estabelecimentoId) {
+                                                setValue("estabelecimentoId", centro.estabelecimentoId, { shouldValidate:true })
+                                            }
+                                        }}>
+                                            <SelectTrigger><SelectValue placeholder="Selecione o centro de custo" /></SelectTrigger>
+                                            <SelectContent>
+                                                {(centrosOpts||[]).filter((c:any)=>c.ativo !== false).map((c:any)=>(
+                                                    <SelectItem key={c.id} value={String(c.id)}>
+                                                        {(c.customCode || c.codigo || c.code) ?? c.id} — {c.descricao || c.nome}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                />
+                            </div>
+                            <div />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                            <div><Label>Admissão</Label><Input type="date" max={new Date().toISOString().split("T")[0]} {...register("admissao" as const)} /></div>
+                            <div><Label>Salário</Label><Input type="number" step="0.01" min="0" {...register("salario" as const, { valueAsNumber:true })} /></div>
                         </div>
 
                         <div>
