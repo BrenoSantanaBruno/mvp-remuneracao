@@ -188,6 +188,48 @@ var trilhas = []Trilha{
 	{ID: 30, Nome: "Trilha Comercial", Area: "CC-001", Ativa: true},
 }
 
+type UF struct {
+	Sigla string `json:"sigla"`
+	Nome  string `json:"nome"`
+}
+
+type Cidade struct {
+	ID   int    `json:"id"`
+	Nome string `json:"nome"`
+	UF   string `json:"uf"`
+}
+
+type CNAE struct {
+	Codigo    string `json:"codigo"`
+	Descricao string `json:"descricao"`
+}
+
+var ufs = []UF{
+	{"AC", "Acre"}, {"AL", "Alagoas"}, {"AP", "Amapá"}, {"AM", "Amazonas"}, {"BA", "Bahia"},
+	{"CE", "Ceará"}, {"DF", "Distrito Federal"}, {"ES", "Espírito Santo"}, {"GO", "Goiás"},
+	{"MA", "Maranhão"}, {"MT", "Mato Grosso"}, {"MS", "Mato Grosso do Sul"}, {"MG", "Minas Gerais"},
+	{"PA", "Pará"}, {"PB", "Paraíba"}, {"PR", "Paraná"}, {"PE", "Pernambuco"}, {"PI", "Piauí"},
+	{"RJ", "Rio de Janeiro"}, {"RN", "Rio Grande do Norte"}, {"RS", "Rio Grande do Sul"}, {"RO", "Rondônia"},
+	{"RR", "Roraima"}, {"SC", "Santa Catarina"}, {"SP", "São Paulo"}, {"SE", "Sergipe"}, {"TO", "Tocantins"},
+}
+
+// amostra de cidades por UF (MVP; pode ser expandido)
+var cidades = []Cidade{
+	{ID: 3550308, Nome: "São Paulo", UF: "SP"},
+	{ID: 3304557, Nome: "Rio de Janeiro", UF: "RJ"},
+	{ID: 4205407, Nome: "Florianópolis", UF: "SC"},
+	{ID: 3106200, Nome: "Belo Horizonte", UF: "MG"},
+	{ID: 5300108, Nome: "Brasília", UF: "DF"},
+}
+
+var cnaes = []CNAE{
+	{"4711-3/01", "Comércio varejista em geral - hipermercados"},
+	{"6201-5/01", "Desenvolvimento de programas de computador"},
+	{"4712-1/00", "Comércio varejista de mercadorias em geral"},
+	{"8621-6/01", "Atividade médica ambulatorial com recursos para realização de procedimentos cirúrgicos"},
+	{"5611-2/01", "Restaurantes e similares"},
+}
+
 func digitsOnly(s string) string {
 	var b strings.Builder
 	for _, r := range s {
@@ -370,6 +412,32 @@ func validateFuncionarioInput(body Funcionario) error {
 		if dt, err := time.Parse("2006-01-02", body.Admissao); err == nil {
 			if dt.After(time.Now()) {
 				return errors.New("data de admissão não pode ser futura")
+			}
+		}
+	}
+	return nil
+}
+
+func validateVigencia(inicio, fim string) error {
+	now := time.Now()
+	if inicio != "" {
+		di, err := time.Parse("2006-01-02", inicio)
+		if err != nil {
+			return errors.New("vigenciaInicio inválida")
+		}
+		if di.After(now) {
+			return errors.New("vigenciaInicio não pode ser futura")
+		}
+		if fim != "" {
+			df, err := time.Parse("2006-01-02", fim)
+			if err != nil {
+				return errors.New("vigenciaFim inválida")
+			}
+			if df.After(now) {
+				return errors.New("vigenciaFim não pode ser futura")
+			}
+			if di.After(df) {
+				return errors.New("vigenciaInicio deve ser anterior ou igual à vigenciaFim")
 			}
 		}
 	}
@@ -705,6 +773,10 @@ func main() {
 				c.JSON(400, gin.H{"error": err.Error()})
 				return
 			}
+			if err := validateVigencia(body.VigenciaInicio, body.VigenciaFim); err != nil {
+				c.JSON(400, gin.H{"error": err.Error()})
+				return
+			}
 			seqID++
 			body.ID = seqID
 			convencoes = append(convencoes, body)
@@ -714,6 +786,10 @@ func main() {
 			id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 			var body Convencao
 			if err := c.BindJSON(&body); err != nil {
+				c.JSON(400, gin.H{"error": err.Error()})
+				return
+			}
+			if err := validateVigencia(body.VigenciaInicio, body.VigenciaFim); err != nil {
 				c.JSON(400, gin.H{"error": err.Error()})
 				return
 			}
@@ -742,6 +818,57 @@ func main() {
 			}
 			convencoes = out
 			c.Status(204)
+		})
+
+		// LOCALIZAÇÃO
+		api.GET("/locations/ufs", func(c *gin.Context) {
+			c.JSON(200, ufs)
+		})
+		api.GET("/locations/ufs/:uf/cities", func(c *gin.Context) {
+			uf := strings.ToUpper(c.Param("uf"))
+			var list []Cidade
+			for _, city := range cidades {
+				if strings.ToUpper(city.UF) == uf {
+					list = append(list, city)
+				}
+			}
+			c.JSON(200, list)
+		})
+
+		// CNAE (busca)
+		api.GET("/cnaes", func(c *gin.Context) {
+			search := strings.ToLower(c.Query("search"))
+			pageStr := c.Query("page")
+			limitStr := c.Query("limit")
+			page, _ := strconv.Atoi(pageStr)
+			if page < 1 {
+				page = 1
+			}
+			limit, _ := strconv.Atoi(limitStr)
+			if limit < 1 {
+				limit = 20
+			}
+			var filtered []CNAE
+			for _, item := range cnaes {
+				if search == "" || strings.Contains(strings.ToLower(item.Codigo), search) || strings.Contains(strings.ToLower(item.Descricao), search) {
+					filtered = append(filtered, item)
+				}
+			}
+			total := len(filtered)
+			start := (page - 1) * limit
+			if start > total {
+				start = total
+			}
+			end := start + limit
+			if end > total {
+				end = total
+			}
+			resp := gin.H{
+				"items":      filtered[start:end],
+				"page":       page,
+				"totalPages": (total + limit - 1) / limit,
+			}
+			c.JSON(200, resp)
 		})
 
 		// QUADRO ORCAMENTARIO
