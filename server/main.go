@@ -313,11 +313,20 @@ func validateCentroCustoInput(body CentroCusto, estabs []Estabelecimento) error 
 	if body.EstabelecimentoID == 0 {
 		return errors.New("estabelecimentoId é obrigatório")
 	}
+	if strings.TrimSpace(body.Codigo) == "" && strings.TrimSpace(body.CustomCode) == "" {
+		return errors.New("código do centro de custo é obrigatório")
+	}
+	code := strings.TrimSpace(body.CustomCode)
+	if code == "" {
+		code = strings.TrimSpace(body.Codigo)
+	}
+	for _, c := range centros {
+		if c.EstabelecimentoID == body.EstabelecimentoID && strings.EqualFold(c.CustomCode, code) && c.ID != body.ID {
+			return errors.New("já existe centro de custo com este código neste estabelecimento")
+		}
+	}
 	for _, e := range estabs {
 		if e.ID == body.EstabelecimentoID {
-			if strings.TrimSpace(body.Codigo) == "" && strings.TrimSpace(body.CustomCode) == "" {
-				return errors.New("código do centro de custo é obrigatório")
-			}
 			return nil
 		}
 	}
@@ -654,6 +663,28 @@ func main() {
 			sindicatos = append(sindicatos, body)
 			c.JSON(201, body)
 		})
+		api.PUT("/sindicatos/:id", func(c *gin.Context) {
+			id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+			var body Sindicato
+			if err := c.BindJSON(&body); err != nil {
+				c.JSON(400, gin.H{"error": err.Error()})
+				return
+			}
+			idx := -1
+			for i, s := range sindicatos {
+				if s.ID == id {
+					idx = i
+					break
+				}
+			}
+			if idx == -1 {
+				c.JSON(404, gin.H{"error": "sindicato não encontrado"})
+				return
+			}
+			body.ID = id
+			sindicatos[idx] = body
+			c.JSON(200, body)
+		})
 		api.DELETE("/sindicatos/:id", func(c *gin.Context) {
 			id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 			out := sindicatos[:0]
@@ -678,6 +709,28 @@ func main() {
 			body.ID = seqID
 			convencoes = append(convencoes, body)
 			c.JSON(201, body)
+		})
+		api.PUT("/convencoes/:id", func(c *gin.Context) {
+			id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+			var body Convencao
+			if err := c.BindJSON(&body); err != nil {
+				c.JSON(400, gin.H{"error": err.Error()})
+				return
+			}
+			body.ID = id
+			idx := -1
+			for i, conv := range convencoes {
+				if conv.ID == id {
+					idx = i
+					break
+				}
+			}
+			if idx == -1 {
+				c.JSON(404, gin.H{"error": "convenção não encontrada"})
+				return
+			}
+			convencoes[idx] = body
+			c.JSON(200, body)
 		})
 		api.DELETE("/convencoes/:id", func(c *gin.Context) {
 			id, _ := strconv.ParseInt(c.Param("id"), 10, 64)

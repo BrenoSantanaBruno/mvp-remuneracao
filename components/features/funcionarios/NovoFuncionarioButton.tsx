@@ -141,12 +141,12 @@ export default function NovoFuncionarioButton({ onCreated }:{ onCreated: (f:Func
                                         }}>
                                             <SelectTrigger><SelectValue placeholder="Selecione o centro de custo" /></SelectTrigger>
                                             <SelectContent>
-                                                {(centrosOpts||[]).filter((c:any)=>c.ativo !== false).map((c:any)=>(
-                                                    <SelectItem key={c.id} value={String(c.id)}>
-                                                        {(c.customCode || c.codigo || c.code) ?? c.id} — {c.descricao || c.nome}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
+                                            {(centrosOpts||[]).filter((c:any)=>c.ativo !== false).map((c:any)=>(
+                                                <SelectItem key={c.id} value={String(c.id)}>
+                                                    {(c.customCode || c.codigo || c.code) ?? c.id} — {c.descricao || c.nome}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
                                         </Select>
                                     )}
                                 />

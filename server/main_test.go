@@ -75,6 +75,15 @@ func TestSindicatoObrigatorioEmEstabelecimento(t *testing.T) {
 	}
 }
 
+func TestCentroCustoCodigoDuplicado(t *testing.T) {
+	estabelecimentos = []Estabelecimento{{ID: 5, EmpresaID: 1, Tipo: "matriz", CNPJ: "46.736.982/0001-85", CNAE: "6201-5/01", Cidade: "Rio", Estado: "RJ", SindicatoPatronalID: 1, SindicatoTrabalhadoresID: 2}}
+	centros = []CentroCusto{{ID: 1, EstabelecimentoID: 5, Codigo: "CC-001", CustomCode: "CC-001", Descricao: "Admin", Ativo: true}}
+	body := CentroCusto{EstabelecimentoID: 5, Codigo: "CC-001", CustomCode: "CC-001", Descricao: "Novo"}
+	if err := validateCentroCustoInput(body, estabelecimentos); err == nil {
+		t.Fatalf("deveria bloquear duplicidade de código customizado")
+	}
+}
+
 func newTestRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.Default()
